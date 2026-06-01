@@ -1,3 +1,5 @@
+import os
+
 import numpy as np
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
@@ -9,7 +11,10 @@ from sklearn.svm import SVC
 from sklearn.tree import DecisionTreeClassifier
 from tabulate import tabulate
 
-df = pd.read_csv('winequality_combined.csv')
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+csv_path = os.path.join(BASE_DIR, 'bazy', 'winequality_combined.csv')
+df = pd.read_csv(csv_path)
+
 # Zmienną jest 'quality'
 X = df.drop(columns=['quality']).values
 y = df['quality'].values
