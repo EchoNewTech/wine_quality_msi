@@ -7,25 +7,31 @@ from sklearn.metrics import confusion_matrix, f1_score, precision_score, recall_
 from sklearn.model_selection import RepeatedStratifiedKFold
 from sklearn.naive_bayes import GaussianNB
 from sklearn.neighbors import KNeighborsClassifier
+from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVC
 from sklearn.tree import DecisionTreeClassifier
 from tabulate import tabulate
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-csv_path = os.path.join(BASE_DIR, 'bazy', 'winequality_combined.csv')
+csv_path = os.path.join(BASE_DIR, 'baza', 'winequality_combined.csv')
 df = pd.read_csv(csv_path)
 
 # Zmienną jest 'quality'
 X = df.drop(columns=['quality']).values
 y = df['quality'].values
+
+# Normalizacja cech
+scaler = StandardScaler()
+X = scaler.fit_transform(X)
+
 print(f"Wymiary cech X: {X.shape}")
 print(f"Wymiary etykiet y: {y.shape}")
 
 models = {
-    "Random Forest": RandomForestClassifier(),
-    "SVM": SVC(),
+    "Random Forest": RandomForestClassifier(class_weight='balanced'),
+    "SVM": SVC(class_weight='balanced', probability=True),
     "kNN": KNeighborsClassifier(),
-    "Decision Tree": DecisionTreeClassifier(),
+    "Decision Tree": DecisionTreeClassifier(class_weight='balanced'),
     "GNB": GaussianNB()
 }
 
@@ -49,11 +55,11 @@ for fold_id, (train_idx, test_idx) in enumerate(cv.split(X, y)):
         clf = model.fit(X_train, y_train)
         y_pred = clf.predict(X_test)
         
-        # Obliczanie metryk - zmieniono na balanced_accuracy_score
+        # Obliczanie metryk
         accuracy = balanced_accuracy_score(y_test, y_pred)
         results_acc[fold_id, model_id] = accuracy
 
-        f1 = f1_score(y_test, y_pred, average='macro')
+        f1 = f1_score(y_test, y_pred, average='macro', zero_division=0)
         results_f1[fold_id, model_id] = f1
 
         precision = precision_score(y_test, y_pred, average='macro', zero_division=0)
@@ -82,5 +88,4 @@ for model_id, model_name in enumerate(models.keys()):
     ])
 
 print("\n--- Tabela Podsumowująca Wyniki ---")
-# Zmieniono nagłówek "Accuracy" na "Balanced Accuracy"
 print(tabulate(table_data, headers=["Model", "Balanced Accuracy", "F1 Score", "Precision", "Recall", "Confusion Matrix"], tablefmt="grid"))
