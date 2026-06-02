@@ -1,5 +1,4 @@
 import os
-
 import numpy as np
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
@@ -10,6 +9,7 @@ from sklearn.neighbors import KNeighborsClassifier
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVC
 from sklearn.tree import DecisionTreeClassifier
+from scipy.stats import ttest_rel
 from tabulate import tabulate
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -29,7 +29,7 @@ print(f"Wymiary etykiet y: {y.shape}")
 
 models = {
     "Random Forest": RandomForestClassifier(class_weight='balanced'),
-    "SVM": SVC(class_weight='balanced', probability=True),
+    "SVM": SVC(class_weight='balanced'),
     "kNN": KNeighborsClassifier(),
     "Decision Tree": DecisionTreeClassifier(class_weight='balanced'),
     "GNB": GaussianNB()
@@ -89,3 +89,63 @@ for model_id, model_name in enumerate(models.keys()):
 
 print("\n--- Tabela Podsumowująca Wyniki ---")
 print(tabulate(table_data, headers=["Model", "Balanced Accuracy", "F1 Score", "Precision", "Recall", "Confusion Matrix"], tablefmt="grid"))
+
+# Testy statystyczne
+alpha = 0.05
+num_models = len(models)
+clfs_names = list(models.keys())
+
+t_stats = np.full((num_models, num_models), np.nan)
+p_values = np.full((num_models, num_models), np.nan)
+better_models = np.zeros((num_models, num_models), dtype=bool)
+significant_differences = np.zeros((num_models, num_models), dtype=bool)
+
+for i in range(num_models):
+    for j in range(num_models):
+        if i != j:
+            stat, p_val = ttest_rel(results_acc[:, i], results_acc[:, j])
+            t_stats[i, j], p_values[i, j] = stat, p_val
+            better_models[i, j] = stat > 0
+            significant_differences[i, j] = p_val < alpha
+
+# print("\n--- Test Statystyczny t-Studenta ---")
+# print(f"T-Statistics:\n{t_stats}")
+# print(f"\nP-Values:\n{p_values}")
+# print(f"\nBetter:\n{better_models}")
+# print(f"\nSignificant:\n{significant_differences}\n")
+
+stat_table = []
+for i in range(num_models):
+    for j in range (i+1, num_models):
+        mean_i, mean_j = np.mean(results_acc[:, i]), np.mean(results_acc[:, j])
+        name_i, name_j = clfs_names[i], clfs_names[j]
+
+        # Interpretacja wyników testu
+        pair_name = f"{name_i} vs {name_j}"
+        p_val_str = f"{p_values[i, j]:.4f}"
+
+        if significant_differences[i, j]:
+            if better_models[i, j]:
+                result_str = f"{name_i} (p={p_val_str})"
+            else:
+                result_str = f"{name_j} (p={p_val_str})"
+            significance_str = "TAK"
+        else:
+            result_str = "Brak różnicy"
+            significance_str = "NIE"
+        stat_table.append([pair_name, result_str, significance_str])
+
+print("\n--- Podsumowanie T-Studenta ---")
+print(tabulate(stat_table, headers=["Para Modeli", "Wynik Testu", "Istotność"], tablefmt="grid"))
+
+print("\n--- Ranking Modeli ---")
+ranking = []
+for i, name in enumerate(clfs_names):
+    mean_acc = np.mean(results_acc[:, i])
+    ranking.append((name, mean_acc))
+
+# Sortowanie malejąco po wyniku
+ranking.sort(key=lambda x: x[1], reverse=True)
+
+for pozycja, (model, wynik) in enumerate(ranking, start=1):
+    print(f"{pozycja}. {model:<13} - Średnia: {wynik:.4f}")
