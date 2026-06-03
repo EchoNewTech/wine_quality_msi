@@ -20,12 +20,12 @@ X_df = df.drop(columns=['quality', 'type'])
 X = X_df.values
 y = df['quality'].values
 feature_names = X_df.columns.tolist()
+
+X_train_raw, X_test_raw, y_train, y_test = train_test_split(X, y, test_size=0.2, stratify=y)
+
 scaler = StandardScaler()
-X_scaled = scaler.fit_transform(X)
-
-
-X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.2, stratify=y)
-
+X_train = scaler.fit_transform(X_train_raw)
+X_test = scaler.transform(X_test_raw)
 
 model_accuracies = {}
 model_feature_ranks = {}
