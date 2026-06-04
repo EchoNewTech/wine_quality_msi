@@ -16,6 +16,7 @@ import matplotlib.pyplot as plt
 import warnings
 import shap
 import copy
+from sklearn.model_selection import cross_val_score
 
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -161,7 +162,7 @@ ranking.sort(key=lambda x: x[1], reverse=True)
 for pozycja, (model, wynik) in enumerate(ranking, start=1):
     print(f"{pozycja}. {model:<13} - Średnia: {wynik:.4f}")
 
-#eksp2
+#eksperyment 2
 
 warnings.filterwarnings('ignore')
 
@@ -249,3 +250,23 @@ acc_df = pd.DataFrame(list(model_accuracies.items()), columns=['Model', 'Balance
 acc_df = acc_df.sort_values(by='Balanced Accuracy', ascending=False)
 print("\n--- SKUTECZNOŚĆ MODELI ---")
 print(tabulate(acc_df, headers='keys', tablefmt='grid', showindex=False))
+
+#eksperyment 3
+
+threshold= 7
+
+df3=df
+df3['is_premium'] = (df3['quality'] >= threshold).astype(bool)
+
+X3 = df3.drop(columns=['quality', 'is_premium','type'])
+y3 = df3['is_premium']
+
+scaler = StandardScaler()
+X_scaled3 = scaler.fit_transform(X3)
+
+model = models[ranking[0][0]]
+scores = cross_val_score(model, X_scaled3, y3, cv=10, scoring='accuracy')
+
+print(f"--- Eksperyment Klasyfikacji Binarnej (Próg: {threshold}) ---")
+print(f"Liczebność klas: \n{df3['is_premium'].value_counts(normalize=True)}")
+print(f"Średnia dokładność: {scores.mean():.4f} (+/- {scores.std():.4f})")
