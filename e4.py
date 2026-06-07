@@ -40,8 +40,7 @@ X_color_df = df.drop(columns=['quality', 'type'])
 X_color = X_color_df.values
 y_color = df['type'].values
 
-X_train_color, X_test_color, y_train_color, y_test_color = train_test_split(X_color, y_color, test_size=0.2,
-                                                                            stratify=y_color)
+X_train_color, X_test_color, y_train_color, y_test_color = train_test_split(X_color, y_color, test_size=0.2, stratify=y_color)
 
 scaler_color = StandardScaler()
 X_train_color = scaler_color.fit_transform(X_train_color)
@@ -68,8 +67,7 @@ for wine_type in wine_types:
     X_type = df[type_mask].drop(columns=['quality', 'type']).values
     y_type = df[type_mask]['quality'].values
 
-    X_train_type, X_test_type, y_train_type, y_test_type = train_test_split(X_type, y_type, test_size=0.2,
-                                                                            stratify=y_type)
+    X_train_type, X_test_type, y_train_type, y_test_type = train_test_split(X_type, y_type, test_size=0.2, stratify=y_type)
 
     scaler_type = StandardScaler()
     X_train_type = scaler_type.fit_transform(X_train_type)
@@ -80,10 +78,8 @@ for wine_type in wine_types:
     y_pred_type = model_type.predict(X_test_type)
     acc_type = balanced_accuracy_score(y_test_type, y_pred_type)
 
-    print(
-        f"Skuteczność modelu (Balanced Accuracy) dla jakości wina {wine_names[wine_type]} (type={wine_type}): {acc_type:.4f}")
-    print("Macierz pomyłek dla jakości wina {}: \n{}".format(wine_names[wine_type],
-                                                             confusion_matrix(y_test_type, y_pred_type)))
+    print(f"Skuteczność modelu (Balanced Accuracy) dla jakości wina {wine_names[wine_type]} (type={wine_type}): {acc_type:.4f}")
+    print("Macierz pomyłek dla jakości wina {}: \n{}".format(wine_names[wine_type], confusion_matrix(y_test_type, y_pred_type)))
 
     # Obliczenie wpływu cech na ocenę wina
     print(f"\nWpływ cech na ocenę wina {wine_names[wine_type]}:")
@@ -122,8 +118,7 @@ for wine_type in wine_types:
     print(tabulate(importance_df, headers='keys', tablefmt='grid', showindex=False))
 
 # Podsumowanie wyników i porównanie rankingów
-print("\n--- BEZPOŚREDNIE PORÓWNANIE WAŻNOŚCI CECH ---")
-print("Tabela prezentuje, czy te same parametry chemiczne decydują o jakości wina w obu grupach.")
+print("\nBEZPOŚREDNIE PORÓWNANIE WAŻNOŚCI CECH")
 
 if "red" in results and "white" in results:
     df_red = results["red"][['Cecha', 'Ranga (red)']].set_index('Cecha')
