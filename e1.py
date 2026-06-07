@@ -78,14 +78,19 @@ for model_id, model_name in enumerate(models.keys()):
     mean_prec = np.mean(results_prec[:, model_id])
     mean_rec = np.mean(results_rec[:, model_id])
     std_acc = np.std(results_acc[:, model_id])
+    std_f1 = np.std(results_f1[:, model_id])
+    std_prec = np.std(results_prec[:, model_id])
+    std_rec = np.std(results_rec[:, model_id])
+
+    avg_cm = conf_matrices[model_name] // n_repeats
 
     table_data.append([
         model_name,
         f"{mean_acc:.4f} (± {std_acc:.4f})",
-        f"{mean_f1:.4f}",
-        f"{mean_prec:.4f}",
-        f"{mean_rec:.4f}",
-        conf_matrices[model_name]
+        f"{mean_f1:.4f} (± {std_f1:.4f})",
+        f"{mean_prec:.4f} (± {std_prec:.4f})",
+        f"{mean_rec:.4f} (± {std_rec:.4f})",
+        avg_cm
     ])
 
 print("\n--- Tabela Podsumowująca Wyniki ---")
