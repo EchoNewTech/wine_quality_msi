@@ -8,7 +8,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from tabulate import tabulate
 import e1
-
+import shap
 warnings.filterwarnings('ignore')
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -40,7 +40,8 @@ X_color_df = df.drop(columns=['quality', 'type'])
 X_color = X_color_df.values
 y_color = df['type'].values
 
-X_train_color, X_test_color, y_train_color, y_test_color = train_test_split(X_color, y_color, test_size=0.2, stratify=y_color)
+X_train_color, X_test_color, y_train_color, y_test_color = train_test_split(X_color, y_color, test_size=0.2,
+                                                                            stratify=y_color)
 
 scaler_color = StandardScaler()
 X_train_color = scaler_color.fit_transform(X_train_color)
@@ -67,7 +68,8 @@ for wine_type in wine_types:
     X_type = df[type_mask].drop(columns=['quality', 'type']).values
     y_type = df[type_mask]['quality'].values
 
-    X_train_type, X_test_type, y_train_type, y_test_type = train_test_split(X_type, y_type, test_size=0.2, stratify=y_type)
+    X_train_type, X_test_type, y_train_type, y_test_type = train_test_split(X_type, y_type, test_size=0.2,
+                                                                            stratify=y_type)
 
     scaler_type = StandardScaler()
     X_train_type = scaler_type.fit_transform(X_train_type)
@@ -78,12 +80,57 @@ for wine_type in wine_types:
     y_pred_type = model_type.predict(X_test_type)
     acc_type = balanced_accuracy_score(y_test_type, y_pred_type)
 
-    print(f"Skuteczność modelu (Balanced Accuracy) dla jakości wina {wine_names[wine_type]} (type={wine_type}): {acc_type:.4f}")
-    print("Macierz pomyłek dla jakości wina {}: \n{}".format(wine_names[wine_type], confusion_matrix(y_test_type, y_pred_type)))
+    print(
+        f"Skuteczność modelu (Balanced Accuracy) dla jakości wina {wine_names[wine_type]} (type={wine_type}): {acc_type:.4f}")
+    print("Macierz pomyłek dla jakości wina {}: \n{}".format(wine_names[wine_type],
+                                                             confusion_matrix(y_test_type, y_pred_type)))
 
     # Obliczenie wpływu cech na ocenę wina
-    print("\nWpływ cech na ocenę wina {}:".format(wine_names[wine_type]))
-    
+    print(f"\nWpływ cech na ocenę wina {wine_names[wine_type]}:")
 
-# Podsumowanie wyników
-print("\nPodsumowanie wpływu cech na ocenę wina:")
+    feature_names = df.drop(columns=['quality', 'type']).columns.tolist()
+
+    if BEST_MODEL_NAME in ["Random Forest", "Decision Tree"]:
+        explainer = shap.TreeExplainer(model_type)
+        shap_values = explainer.shap_values(X_test_type)
+        X_shap_display = X_test_type
+    else:
+        background = shap.kmeans(X_train_type, 10)
+        explainer = shap.KernelExplainer(model_type.predict, background)
+        X_shap_display = X_test_type[:100]
+        shap_values = explainer.shap_values(X_shap_display)
+
+    if isinstance(shap_values, list):
+        shap_abs_mean = np.mean([np.abs(sv).mean(0) for sv in shap_values], axis=0)
+    elif len(np.shape(shap_values)) == 3:
+        shap_abs_mean = np.mean(np.abs(shap_values), axis=(0, 2))
+    else:
+        shap_abs_mean = np.abs(shap_values).mean(0)
+
+    nazwa_kolumny_shap = f'Wartość SHAP ({wine_names[wine_type]})'
+    nazwa_kolumny_rangi = f'Ranga ({wine_names[wine_type]})'
+
+    importance_df = pd.DataFrame({
+        'Cecha': feature_names,
+        nazwa_kolumny_shap: shap_abs_mean
+    }).sort_values(by=nazwa_kolumny_shap, ascending=False)
+
+    importance_df[nazwa_kolumny_rangi] = importance_df[nazwa_kolumny_shap].rank(ascending=False).astype(int)
+    importance_df = importance_df[[nazwa_kolumny_rangi, 'Cecha', nazwa_kolumny_shap]]
+    results[wine_names[wine_type]] = importance_df
+
+    print(tabulate(importance_df, headers='keys', tablefmt='grid', showindex=False))
+
+# Podsumowanie wyników i porównanie rankingów
+print("\n--- BEZPOŚREDNIE PORÓWNANIE WAŻNOŚCI CECH ---")
+print("Tabela prezentuje, czy te same parametry chemiczne decydują o jakości wina w obu grupach.")
+
+if "red" in results and "white" in results:
+    df_red = results["red"][['Cecha', 'Ranga (red)']].set_index('Cecha')
+    df_white = results["white"][['Cecha', 'Ranga (white)']].set_index('Cecha')
+    comparison_df = df_red.join(df_white)
+    comparison_df['Różnica pozycji'] = np.abs(comparison_df['Ranga (red)'] - comparison_df['Ranga (white)'])
+    comparison_df = comparison_df.sort_values(by='Różnica pozycji', ascending=False).reset_index()
+    print(tabulate(comparison_df, headers='keys', tablefmt='grid', showindex=False))
+else:
+    print("Brak pełnych danych do wygenerowania porównania.")
