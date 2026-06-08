@@ -3,7 +3,7 @@ import copy
 import numpy as np
 import pandas as pd
 from sklearn.metrics import confusion_matrix, balanced_accuracy_score
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import RepeatedStratifiedKFold
 from sklearn.preprocessing import StandardScaler
 from tabulate import tabulate
 import shap
@@ -16,55 +16,78 @@ warnings.filterwarnings('ignore')
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 csv_path = os.path.join(BASE_DIR, 'baza', 'winequality_combined.csv')
 df = pd.read_csv(csv_path)
+
 X_df = df.drop(columns=['quality', 'type'])
 X = X_df.values
 y = df['quality'].values
 feature_names = X_df.columns.tolist()
 
-X_train_raw, X_test_raw, y_train, y_test = train_test_split(X, y, test_size=0.2, stratify=y)
+unique_classes = np.unique(y)
 
-scaler = StandardScaler()
-X_train = scaler.fit_transform(X_train_raw)
-X_test = scaler.transform(X_test_raw)
+n_splits = 2
+n_repeats = 5
+rskf = RepeatedStratifiedKFold(n_splits=n_splits, n_repeats=n_repeats, random_state=42)
 
 model_accuracies = {}
 model_feature_ranks = {}
 
 for model_name, model_instance in e1.models.items():
-    print(f"\n ANALIZOWANY MODEL: {model_name}")
-    model = copy.deepcopy(model_instance)
-    model.fit(X_train, y_train)
-    y_pred = model.predict(X_test)
-    acc = balanced_accuracy_score(y_test, y_pred)
-    print(f"Balanced Accuracy: {acc:.4f}\n")
-    model_accuracies[model_name] = acc
-    cm = confusion_matrix(y_test, y_pred)
-    unique_classes = np.unique(y)
+    print(f"--- ANALIZOWANY MODEL: {model_name} ---")
+    
+    fold_accs = []
+    cm_total = np.zeros((len(unique_classes), len(unique_classes)), dtype=int)
 
-    print("--- Najczęstsze pomyłki (próg > 15%) ---")
+    for fold, (train_idx, test_idx) in enumerate(rskf.split(X, y), 1):
+        X_train_fold, X_test_fold = X[train_idx], X[test_idx]
+        y_train_fold, y_test_fold = y[train_idx], y[test_idx]
+
+        # Skalowanie niezależne dla każdego foldu
+        scaler = StandardScaler()
+        X_train_fold_scaled = scaler.fit_transform(X_train_fold)
+        X_test_fold_scaled = scaler.transform(X_test_fold)
+
+        model = copy.deepcopy(model_instance)
+        model.fit(X_train_fold_scaled, y_train_fold)
+        
+        y_pred_fold = model.predict(X_test_fold_scaled)
+        
+        acc = balanced_accuracy_score(y_test_fold, y_pred_fold)
+        fold_accs.append(acc)
+        
+        cm_total += confusion_matrix(y_test_fold, y_pred_fold, labels=unique_classes)
+
+    # Podsumowanie wyników Repeated CV
+    avg_acc = np.mean(fold_accs)
+    print(f"Średnia Balanced Accuracy: {avg_acc:.4f}\n")
+    model_accuracies[model_name] = avg_acc
+
+    print("Najczęstsze pomyłki (agregacja ze wszystkich iteracji, próg > 15%)")
     for i, true_class in enumerate(unique_classes):
-        total_true = np.sum(cm[i, :])
+        total_true = np.sum(cm_total[i, :])
         if total_true == 0: continue
 
         for j, pred_class in enumerate(unique_classes):
-            if i != j and cm[i, j] > 0:
-                error_rate = cm[i, j] / total_true * 100
+            if i != j and cm_total[i, j] > 0:
+                error_rate = cm_total[i, j] / total_true * 100
                 if error_rate > 15:
-                    print(
-                        f"Jakość {true_class} mylona z {pred_class}: {error_rate:.1f}% przypadków ({cm[i, j]} błędów).")
+                    print(f"Jakość {true_class} mylona z {pred_class}: {error_rate:.1f}% przypadków ({cm_total[i, j]} błędów łącznie).")
 
-
-    print("\n--- Analiza SHAP ---")
+    print(f"\nAnaliza SHAP dla modelu: {model_name}")
+    # Wytrenowanie ostatecznego modelu na całych danych
+    scaler_full = StandardScaler()
+    X_scaled_full = scaler_full.fit_transform(X)
+    
+    final_model = copy.deepcopy(model_instance)
+    final_model.fit(X_scaled_full, y)
 
     if model_name in ["Random Forest", "Decision Tree"]:
-        explainer = shap.TreeExplainer(model)
-        shap_values = explainer.shap_values(X_test)
-        X_shap_display = X_test
+        explainer = shap.TreeExplainer(final_model)
+        X_shap_display = shap.sample(X_scaled_full, len(y)//5, random_state=42) 
+        shap_values = explainer.shap_values(X_shap_display)
     else:
-        # shap.kmeans kompresuje cały X_train do 10 centroidów
-        background = shap.kmeans(X_train, 10)
-        explainer = shap.KernelExplainer(model.predict, background)
-        X_shap_display = X_test[:100]
+        background = shap.kmeans(X_scaled_full, 10)
+        explainer = shap.KernelExplainer(final_model.predict, background)
+        X_shap_display = shap.sample(X_scaled_full, 100, random_state=42)
         shap_values = explainer.shap_values(X_shap_display)
 
     # Agregacja wartości SHAP do wspólnego rankingu
@@ -97,7 +120,8 @@ for model_name, model_instance in e1.models.items():
 
     print(f"\nWykres SHAP został zapisany w tle jako: {filename}")
 
+# Zestawienie końcowe
 acc_df = pd.DataFrame(list(model_accuracies.items()), columns=['Model', 'Balanced Accuracy'])
 acc_df = acc_df.sort_values(by='Balanced Accuracy', ascending=False)
-print("\n--- SKUTECZNOŚĆ MODELI ---")
+print("\nŚREDNIA BALANCED ACCURACY Z REPEATED CV DLA WSZYSTKICH MODELI:")
 print(tabulate(acc_df, headers='keys', tablefmt='grid', showindex=False))
