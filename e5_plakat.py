@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import numpy as np
-import e5  # Uruchomienie Twojego skryptu analizy
+import e5
 
 # Słownik z jednostkami dla poszczególnych cech chemicznych wina
 UNITS = {
@@ -18,17 +18,25 @@ UNITS = {
     'alcohol': '% vol'
 }
 
-def get_top_5_percent_means(wine_type_val):
+def get_top_5_percent_stats(wine_type_val, metric='mean'):
     """
-    Oblicza średnie wartości cech dla 5% najwyżej ocenianych win danego typu (1 - czerwone, 0 - białe)
-    na podstawie całego zbioru danych z e5.py.
+    Oblicza wartości cech dla fizycznego 5% najlepszych win, z zastrzeżeniem,
+    że bierzemy pod uwagę wyłącznie oceny >= 7.
     """
     df_wine = e5.df[e5.df['type'] == wine_type_val]
-    threshold = np.percentile(df_wine['quality'], 95)
-    top_wines = df_wine[df_wine['quality'] >= threshold]
-    return top_wines.mean()
+    
+    # Obliczenie liczby win, które stanowią 5% zbioru
+    n_top = int(len(df_wine) * 0.05)
+    # Posortowanie win według jakości i wybranie top
+    df_sorted = df_wine.sort_values(by='quality', ascending=False).head(n_top)
+    # Zostawienie tylko tych, które mają ocenę 7 lub wyższą
+    top_wines = df_sorted[df_sorted['quality'] >= 7]
+    
+    if metric == 'median':
+        return top_wines.median(numeric_only=True)
+    return top_wines.mean(numeric_only=True)
 
-def draw_and_save_label(title, color_bg, color_text, color_accent, top_features, means, filename):
+def draw_and_save_label(title, color_bg, color_text, color_accent, top_features, values, filename):
     """
     Rysuje pojedynczą pionową etykietę wina i zapisuje ją do pliku.
     """
@@ -60,8 +68,8 @@ def draw_and_save_label(title, color_bg, color_text, color_accent, top_features,
     # Wypisywanie 6 cech wraz z wartościami i jednostkami
     y_pos = 0.55
     for feature in top_features:
-        clean_feature = feature.replace('_', ' ').title()
-        val = means[feature]
+        clean_feature = 'pH' if feature.lower() == 'ph' else feature.replace('_', ' ').title()
+        val = values[feature]
         unit = UNITS.get(feature, '')
         
         # Cecha po lewej stronie
@@ -71,9 +79,9 @@ def draw_and_save_label(title, color_bg, color_text, color_accent, top_features,
         
         y_pos -= 0.07 # Odstęp do kolejnej linii
 
-    # Stopka
+    # Stopka neutralna
     ax.plot([0.3, 0.7], [0.12, 0.12], color=color_accent, lw=1, zorder=3)
-    ax.text(0.5, 0.07, "Oparte na modelu SHAP i średnich\ndla najwyższej jakości", fontsize=8, color=color_text, ha='center', va='center', zorder=3)
+    ax.text(0.5, 0.07, "Oparte na modelu SHAP i statystykach\ndla najwyższej jakości", fontsize=8, color=color_text, ha='center', va='center', zorder=3)
 
     # Zapis pliku
     plt.tight_layout()
@@ -90,33 +98,39 @@ def generate_labels():
     top_red_features = e5.results["red"].sort_values(by="Ranga (red)")['Cecha'].head(6).tolist()
     top_white_features = e5.results["white"].sort_values(by="Ranga (white)")['Cecha'].head(6).tolist()
 
-    # Obliczenie średnich parametrów dla win top 5%
-    means_red = get_top_5_percent_means(1)
-    means_white = get_top_5_percent_means(0)
+    metrics = ['mean', 'median']
+    metric_labels = {'mean': 'ŚREDNIA ARYTMETYCZNA', 'median': 'MEDIANA'}
 
-    # Generowanie etykiety dla czerwonego wina
-    draw_and_save_label(
-        title="PREMIUM RED", 
-        color_bg="#4A0E1C", 
-        color_text="#FDF6E3", 
-        color_accent="#D4AF37", 
-        top_features=top_red_features, 
-        means=means_red,
-        filename="etykieta_czerwone.png"
-    )
+    for metric in metrics:
+        print(f"\n--- Generowanie etykiet dla metryki: {metric_labels[metric]} ---")
+        
+        # Obliczenie statystyk dla win top 5%
+        values_red = get_top_5_percent_stats(1, metric=metric)
+        values_white = get_top_5_percent_stats(0, metric=metric)
 
-    # Generowanie etykiety dla białego wina
-    draw_and_save_label(
-        title="PREMIUM WHITE", 
-        color_bg="#F8F4E6", 
-        color_text="#2F4F4F", 
-        color_accent="#C5B358", 
-        top_features=top_white_features, 
-        means=means_white,
-        filename="etykieta_biale.png"
-    )
+        # Generowanie etykiety dla czerwonego wina
+        draw_and_save_label(
+            title="PREMIUM RED", 
+            color_bg="#4A0E1C", 
+            color_text="#FDF6E3", 
+            color_accent="#D4AF37", 
+            top_features=top_red_features, 
+            values=values_red,
+            filename=f"etykieta_czerwone_{metric}.png"
+        )
+
+        # Generowanie etykiety dla białego wina
+        draw_and_save_label(
+            title="PREMIUM WHITE", 
+            color_bg="#F8F4E6", 
+            color_text="#2F4F4F", 
+            color_accent="#C5B358", 
+            top_features=top_white_features, 
+            values=values_white,
+            filename=f"etykieta_biale_{metric}.png"
+        )
 
 if __name__ == "__main__":
     print("Rozpoczynam generowanie etykiet...")
     generate_labels()
-    print("Zakończono. Pliki są gotowe do użycia na plakacie.")
+    print("\nZakończono. Wszystkie 4 pliki są gotowe do użycia na plakacie.")
