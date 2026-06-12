@@ -3,8 +3,8 @@ import copy
 import warnings
 import numpy as np
 import pandas as pd
-from sklearn.metrics import confusion_matrix, balanced_accuracy_score
-from sklearn.model_selection import RepeatedStratifiedKFold
+from sklearn.metrics import confusion_matrix, balanced_accuracy_score, recall_score, f1_score
+from sklearn.model_selection import RepeatedStratifiedKFold 
 from sklearn.preprocessing import StandardScaler
 from tabulate import tabulate
 import e1
@@ -65,6 +65,9 @@ for wine_type in wine_types:
     y_type = df[type_mask]['quality'].values
 
     type_accuracies = []
+    type_recalls = []
+    type_f1s = []
+    
     type_classes = np.unique(y_type)
     type_conf_matrix = np.zeros((len(type_classes), len(type_classes)), dtype=int)
 
@@ -83,7 +86,11 @@ for wine_type in wine_types:
         model_type.fit(X_train_t, y_train_t)
         y_pred_t = model_type.predict(X_test_t)
 
+        # Zbieranie nowych metryk (z uwzględnieniem problemu wieloklasowego)
         type_accuracies.append(balanced_accuracy_score(y_test_t, y_pred_t))
+        type_recalls.append(recall_score(y_test_t, y_pred_t, average='macro', zero_division=0))
+        type_f1s.append(f1_score(y_test_t, y_pred_t, average='macro', zero_division=0))
+        
         type_conf_matrix += confusion_matrix(y_test_t, y_pred_t, labels=type_classes)
 
         # Analiza SHAP dla bieżącego foldu
@@ -124,8 +131,25 @@ for wine_type in wine_types:
     importance_df = importance_df[[nazwa_kolumny_rangi, 'Cecha', nazwa_kolumny_shap]]
     results[wine_names[wine_type]] = importance_df
 
+    # Wyświetlenie tabeli z ważnością cech
     print(tabulate(importance_df, headers='keys', tablefmt='grid', showindex=False))
 
+    # --- NOWA SEKCJA: Podsumowanie metryk klasyfikatora ---
+    mean_acc = np.mean(type_accuracies)
+    std_acc = np.std(type_accuracies)
+    
+    mean_rec = np.mean(type_recalls)
+    std_rec = np.std(type_recalls)
+    
+    mean_f1 = np.mean(type_f1s)
+    std_f1 = np.std(type_f1s)
+
+    print(f"\nPodsumowanie skuteczności dla wina: {wine_names[wine_type]}")
+    print(tabulate([
+        ["Balanced Accuracy", f"{mean_acc:.4f}", f"± {std_acc:.4f}"],
+        ["Recall", f"{mean_rec:.4f}", f"± {std_rec:.4f}"],
+        ["F1 Score", f"{mean_f1:.4f}", f"± {std_f1:.4f}"]
+    ], headers=["Metryka", "Średni Wynik", "Odchylenie Stand."], tablefmt="grid"))
 
 print("\nBEZPOŚREDNIE PORÓWNANIE WAŻNOŚCI CECH")
 
