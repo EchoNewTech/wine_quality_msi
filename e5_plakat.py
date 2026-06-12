@@ -131,6 +131,6 @@ def generate_labels():
         )
 
 if __name__ == "__main__":
-    print("Rozpoczynam generowanie etykiet...")
+    print("Generowanie etykiet...")
     generate_labels()
-    print("\nZakończono. Wszystkie 4 pliki są gotowe do użycia na plakacie.")
+    print("\nZakończono")

@@ -159,8 +159,8 @@ for wine_type in wine_types:
     # Tworzenie tabeli z recepturą na "idealne" wino na podstawie średnich i mediany cech dla top 5%
     recipe_df = pd.DataFrame({
         'Parametr chemiczny': feature_names,
-        'Średnia (Mean)': df_top_5_raw.mean().values.round(3),
-        'Mediana (Median)': df_top_5_raw.median().values.round(3)
+        'Średnia': df_top_5_raw.mean().values.round(3),
+        'Mediana': df_top_5_raw.median().values.round(3)
     })
 
     # Dopasowanie nazwy kolumny "Cecha" do złączenia z importance_df
@@ -171,7 +171,7 @@ for wine_type in wine_types:
     print(f"\n--- RECEPTURA NA 'IDEALNE' WINO {wine_names[wine_type].upper()} (na podstawie najlepszych {len(df_top_5_raw)} win) ---")
     
     # Wyświetlenie tylko wybranych kolumn w tabeli
-    columns_to_display = ['Parametr chemiczny', 'Średnia (Mean)', 'Mediana (Median)']
+    columns_to_display = ['Parametr chemiczny', 'Średnia', 'Mediana']
     print(tabulate(recipe_df[columns_to_display], headers='keys', tablefmt='grid', showindex=False))
 
     # Przygotowanie danych do predykcji jakości na podstawie średniej i mediany cech dla top 5%
@@ -195,8 +195,8 @@ for wine_type in wine_types:
     # ZBIERANIE WYNIKÓW DO TABELI PODSUMOWUJĄCEJ
     summary_data.append({
         'Typ wina': wine_names[wine_type].upper(),
-        'Ocena dla przepisu ŚREDNIEJ (Mean)': int(pred_mean),
-        'Ocena dla przepisu MEDIANY (Median)': int(pred_median)
+        'Ocena dla przepisu ŚREDNIEJ': int(pred_mean),
+        'Ocena dla przepisu MEDIANY': int(pred_median)
     })
 
 print("\nPORÓWNANIE WAŻNOŚCI CECH DLA TOP 5% WIN (Walidacja Krzyżowa)")
